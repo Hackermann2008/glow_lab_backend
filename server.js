@@ -1,74 +1,86 @@
-// ... Dentro da classe SmartMirror ...
+// server.js (Código Backend Correto)
+const express = require('express');
+const cors = require('cors');
+const axios = require('axios');
+const FormData = require('form-data');
 
-async analyzeFace() {
-    if (!this.isActive) {
-        this.showMessage('Ative o espelho primeiro para analisar seu rosto');
-        return;
-    }
-    if (this.isAnalyzing) {
-        this.showMessage('Análise já em andamento...');
-        return;
-    }
-    this.isAnalyzing = true;
-    this.showLoading();
-    this.showMessage('Capturando imagem e preparando análise...');
+const app = express();
+const PORT = process.env.PORT || 10000; // Porta compatível com o Render
 
+// --- Substitua por suas chaves reais da API do Face++ ---
+const FACE_API_KEY = 'rQ0Doe6R__jziSPbiJywwLG_oHFgIauB';
+const FACE_API_SECRET = '01xOnE9f-ac7dqQK-xFphhiUrh9npLM4';
+// ---------------------------------------------------------
+
+const FACE_API_URL = 'https://api-us.faceplusplus.com/facepp/v3/detect';
+
+// Middleware
+app.use(cors());
+app.use(express.json({ limit: '10mb' }));
+
+// Rota para análise facial
+app.post('/analyze-face', async (req, res) => { // Endpoint correto é /analyze-face
     try {
-        // 1. Captura o frame atual do vídeo
-        const video = this.cameraFeed;
-        const canvas = this.captureCanvas;
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const { imageBase64 } = req.body;
 
-        // 2. Converte o canvas para uma Data URL (base64)
-        const dataUrl = canvas.toDataURL('image/jpeg');
-        // Extrai apenas a parte base64 (remove o prefixo 'data:image/jpeg;base64,')
-        const base64Image = dataUrl.split(',')[1];
+        if (!imageBase64) {
+            return res.status(400).json({ error: 'Dados da imagem (imageBase64) não fornecidos.' });
+        }
 
-        // 3. Prepara o payload JSON
-        const payload = {
-            imageBase64: base64Image
-        };
+        const formData = new FormData();
+        formData.append('api_key', FACE_API_KEY);
+        formData.append('api_secret', FACE_API_SECRET);
+        formData.append('image_base64', imageBase64);
+        formData.append('return_attributes', 'gender,age,smiling,emotion,beauty,skinstatus,facequality,blur,eyestatus,mouthstatus,eyegaze,headpose');
+        formData.append('return_landmark', '0');
 
-        // 4. Envia para o backend REAL
-        // --- CORREÇÃO PRINCIPAL ---
-        const response = await fetch(`${this.backendUrl}/analyze-face`, { // <-- Endpoint correto
-            method: 'POST',
+        console.log("Enviando requisição para Face++...");
+
+        const response = await axios({
+            method: 'post',
+            url: FACE_API_URL,
+            data: formData,
             headers: {
-                'Content-Type': 'application/json' // <-- Tipo de conteúdo correto
+                ...formData.getHeaders()
             },
-            body: JSON.stringify(payload) // <-- Dados no formato JSON
+            timeout: 10000
         });
-        // --------------------------
 
-        if (!response.ok) {
-             const errorData = await response.json().catch(() => ({})); // Tenta pegar detalhes do erro
-             throw new Error(`Erro na análise: ${response.status} - ${errorData.message || response.statusText}`);
-        }
+        console.log("Resposta recebida da Face++:", response.status);
+        return res.status(200).json(response.data);
 
-        const data = await response.json();
-        this.hideLoading();
-        this.isAnalyzing = false;
-        
-        // Verifica se a API do Face++ encontrou um rosto
-        if (data.faces && data.faces.length > 0) {
-             this.displayAnalysisResults(data); // Passa os dados reais da API
-             this.showMessage('Análise facial concluída! Resultados disponíveis.');
+    } catch (error) {
+        console.error("Erro na função /analyze-face:", error.message);
+
+        if (error.response) {
+            console.error("Detalhes do erro da API do Face++:", error.response.status, error.response.data);
+            return res.status(error.response.status || 500).json({
+                error: 'Erro na API do Face++',
+                message: error.response.data?.error_message || 'Erro desconhecido na API do Face++',
+                details: error.response.data
+            });
+        } else if (error.request) {
+            console.error("Erro de conexão com a API do Face++:", error.request);
+            return res.status(503).json({
+                error: 'Erro de conexão com a API do Face++',
+                message: 'Não foi possível conectar à API do Face++. Tente novamente mais tarde.'
+            });
         } else {
-             this.showMessage('Nenhum rosto detectado na imagem. Tente novamente.');
-             console.warn("Nenhum rosto detectado pela API do Face++:", data);
+            console.error("Erro interno:", error.message);
+            return res.status(500).json({
+                error: 'Erro interno do servidor',
+                message: error.message
+            });
         }
-        
-    } catch (err) {
-        console.error("Erro durante a análise:", err);
-        this.hideLoading();
-        this.isAnalyzing = false;
-        this.showMessage(`Erro na análise: ${err.message}`);
-        // Opcional: Fechar resultados anteriores em caso de erro
-        this.hideAnalysisResults();
     }
-}
+});
 
-// ... (restante da classe SmartMirror e outros scripts) ...
+// Rota de health check
+app.get('/', (req, res) => {
+    res.json({ message: 'Servidor backend Glow Lab - Conectado ao Face++' });
+});
+
+// Inicia o servidor
+app.listen(PORT, '0.0.0.0', () => { // O Render exige escutar em 0.0.0.0
+    console.log(`🚀 Servidor backend Glow Lab rodando na porta ${PORT}`);
+});
