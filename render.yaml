@@ -1,0 +1,34 @@
+# render.yaml
+
+services:
+  - type: web
+    name: glow-lab-face-analysis-backend # Nome do seu serviço na Render
+    runtime: node
+    plan: free # Plano gratuito (ou escolha 'starter'/'standard' se precisar de mais recursos)
+    buildCommand: npm install # Comando para instalar dependências
+    startCommand: npm start   # Comando para iniciar o servidor (definido no package.json)
+    envVars:
+      - key: NODE_VERSION
+        value: 18               # Versão do Node.js (certifique-se de que é compatível com suas dependências)
+      # Você pode adicionar outras variáveis de ambiente aqui se necessário
+      # - key: OUTRA_VAR
+      #   value: valor_da_variavel
+
+    # Se seu repositório tiver subdiretórios e o código principal estiver em um deles
+    # rootDir: ./caminho/para/o/backend (descomente e ajuste se necessário)
+
+    # Domínio personalizado (opcional)
+    # domains:
+    #   - your-custom-domain.com
+
+    # Health check (opcional)
+    # healthCheckPath: /
+
+    # Auto Deploy (opcional)
+    # autoDeploy: true
+
+    # Regras de roteamento (opcional, para servir arquivos estáticos se necessário)
+    # routes:
+    #   - type: web
+    #     src: /
+    #     dest: /
